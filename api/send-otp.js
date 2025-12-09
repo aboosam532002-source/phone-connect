@@ -1,3 +1,5 @@
+import { Vonage } from "@vonage/server-sdk";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -9,25 +11,20 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Phone number is required" });
   }
 
-  try {
-    const params = new URLSearchParams();
-    params.append("api_key", process.env.VONAGE_API_KEY);
-    params.append("api_secret", process.env.VONAGE_API_SECRET);
-    params.append("to", phone);
-    params.append("from", process.env.VONAGE_BRAND_NAME || "Verify");
-    params.append("text", "Your verification code is 123456");
+  const vonage = new Vonage({
+    apiKey: process.env.VONAGE_API_KEY,
+    apiSecret: process.env.VONAGE_API_SECRET,
+  });
 
-    const response = await fetch("https://rest.nexmo.com/sms/json", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params
+  try {
+    const response = await vonage.verify.start({
+      number: phone,
+      brand: "Verify",
     });
 
-    const data = await response.json();
-
-    return res.status(200).json(data);
+    return res.status(200).json({ request_id: response.request_id });
   } catch (error) {
     console.error("Vonage Error:", error);
-    return res.status(500).json({ error: "Failed to send SMS", details: error });
+    return res.status(500).json({ error: "Verification failed", details: error });
   }
 }
