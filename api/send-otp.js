@@ -7,24 +7,40 @@ export default async function handler(req, res) {
 
   const { phone } = req.body;
 
-  if (!phone) {
-    return res.status(400).json({ error: "Phone number is required" });
-  }
-
   const vonage = new Vonage({
-    apiKey: process.env.VONAGE_API_KEY,
-    apiSecret: process.env.VONAGE_API_SECRET,
+    applicationId: process.env.VONAGE_APPLICATION_ID,
+    privateKey: process.env.VONAGE_PRIVATE_KEY,
   });
 
+  const code = Math.floor(100000 + Math.random() * 900000);
+
+  const ncco = [
+    {
+      action: "talk",
+      text: `Your verification code is ${code}`,
+      language: "en-US",
+      style: 2
+    }
+  ];
+
   try {
-    const response = await vonage.verify.start({
-      number: phone,
-      brand: "Verify",
+    const response = await vonage.voice.createOutboundCall({
+      to: [{ type: "phone", number: phone }],
+      from: { type: "phone", number: process.env.VONAGE_NUMBER },
+      ncco
     });
 
-    return res.status(200).json({ request_id: response.request_id });
+    return res.status(200).json({
+      success: true,
+      code,
+      vonageResponse: response
+    });
+
   } catch (error) {
-    console.error("Vonage Error:", error);
-    return res.status(500).json({ error: "Verification failed", details: error });
+    console.error(error);
+    return res.status(500).json({
+      error: "Voice call failed",
+      details: error
+    });
   }
 }
