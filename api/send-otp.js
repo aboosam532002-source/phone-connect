@@ -1,30 +1,61 @@
-// إنشاء تخزين مؤقت للكود (OTP) إذا غير موجود
-if (!global.otpStore) {
-  global.otpStore = {};
+export const config = {
+  runtime: "edge",
+};
+
+// CORS handler
+function handleCORS(req) {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+  return null;
 }
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-export default async function handler(req, res) {
+export default async function handler(req) {
+  // CORS
+  const cors = handleCORS(req);
+  if (cors) return cors;
+
   if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method not allowed" });
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      {
+        status: 405,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
   }
 
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ message: "Missing phone" });
+  const { phone } = await req.json();
+  if (!phone) {
+    return new Response(
+      JSON.stringify({ error: "Missing phone" }),
+      {
+        status: 400,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
+  }
 
   const code = generateOTP();
-
-  // حفظ الكود في التخزين المؤقت
-  global.otpStore[phone] = {
-    code: code,
-    expires: Date.now() + 2 * 60 * 1000 // مدة الحياة 2 دقيقة
+  globalThis.otpStore = globalThis.otpStore || {};
+  globalThis.otpStore[phone] = {
+    code,
+    expires: Date.now() + 5 * 60 * 1000,
   };
 
   try {
-    const vonage = new Vonage({
+    const vonage = new (require("@vonage/server-sdk").Vonage)({
       apiKey: process.env.VONAGE_API_KEY,
       apiSecret: process.env.VONAGE_API_SECRET,
       applicationId: process.env.VONAGE_APPLICATION_ID,
@@ -35,16 +66,31 @@ export default async function handler(req, res) {
       {
         action: "talk",
         text: `Your verification code is ${code.split("").join(" ")}`,
-        voiceName: "Joey"
-      }
+        voiceName: "Joey",
+      },
     ];
 
     await vonage.voice.createCall({
       to: [{ type: "phone", number: phone }],
-      from: { type: "phone", number: process.env.VONAGE_NUMBER },
-      ncco
+      from: [{ type: "phone", number: process.env.VONAGE_NUMBER }],
+      ncco,
     });
 
-    return res.status(200).json({ success: true, message: "Call placed" });
-
+    return new Response(
+      JSON.stringify({ success: true }),
+      {
+        status: 200,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
+  } catch (err) {
+    console.error("Vonage error:", err);
+    return new Response(
+      JSON.stringify({ error: "Vonage failed" }),
+      {
+        status: 500,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
   }
+}
