@@ -1,20 +1,24 @@
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export default async function handler(req, res) {
-  // قراءة الـ RAW BODY يدويًا
-  const buffers = [];
-  for await (const chunk of req) buffers.push(chunk);
-  const rawBody = Buffer.concat(buffers).toString();
+  let raw = "";
 
-  console.log("VOICE EVENT RAW BODY:", rawBody);
-
-  let data = {};
-  try {
-    data = JSON.parse(rawBody);
-  } catch (e) {
-    console.log("Error parsing JSON:", e);
+  for await (const chunk of req) {
+    raw += chunk;
   }
 
-  console.log("VOICE EVENT PARSED:", data);
+  console.log("VOICE EVENT RAW:", raw);
 
-  // vonage expects 200 OK with no content
+  try {
+    const parsed = JSON.parse(raw);
+    console.log("VOICE EVENT PARSED:", parsed);
+  } catch {
+    console.log("VOICE EVENT PARSE ERROR");
+  }
+
   res.status(200).end();
 }
