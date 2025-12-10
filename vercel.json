@@ -1,16 +1,10 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/voice/answer.js", "use": "@vercel/node" },
-    { "src": "api/voice/events.js", "use": "@vercel/node" },
-    { "src": "api/voice/fallback.js", "use": "@vercel/node" },
-    { "src": "api/send-otp.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" }
-  ],
   "routes": [
+    { "src": "/api/send-otp", "dest": "/api/send-otp.js" },
+
     { "src": "/api/voice/answer", "dest": "/api/voice/answer.js" },
-    { "src": "/api/voice/events", "dest": "/api/voice/events.js" },
-    { "src": "/api/voice/fallback", "dest": "/api/voice/fallback.js" },
-    { "src": "/api/send-otp", "dest": "/api/send-otp.js" }
+    { "src": "/api/voice/events",  "dest": "/api/voice/events.js" },
+    { "src": "/api/voice/fallback","dest": "/api/voice/fallback.js" }
   ]
 }
