@@ -1,3 +1,9 @@
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export default function handler(req, res) {
   const ncco = [
     {
@@ -5,5 +11,6 @@ export default function handler(req, res) {
       text: "Hello, your verification call has started."
     }
   ];
+
   res.status(200).json(ncco);
 }
