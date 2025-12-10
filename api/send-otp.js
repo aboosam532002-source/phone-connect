@@ -1,46 +1,38 @@
-import { Vonage } from "@vonage/server-sdk";
+import Vonage from "@vonage/server-sdk";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const { phone } = req.body;
-
-  const vonage = new Vonage({
-    applicationId: process.env.VONAGE_APPLICATION_ID,
-    privateKey: process.env.VONAGE_PRIVATE_KEY,
-  });
-
-  const code = Math.floor(100000 + Math.random() * 900000);
-
-  const ncco = [
-    {
-      action: "talk",
-      text: `Your verification code is ${code}`,
-      language: "en-US",
-      style: 2
-    }
-  ];
-
   try {
-    const response = await vonage.voice.createOutboundCall({
-      to: [{ type: "phone", number: phone }],
-      from: { type: "phone", number: process.env.VONAGE_NUMBER },
-      ncco
+    const { phone } = req.body;
+
+    // Generate random 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000);
+
+    const vonage = new Vonage({
+      apiKey: process.env.VONAGE_API_KEY,
+      apiSecret: process.env.VONAGE_API_SECRET,
+      applicationId: process.env.VONAGE_APPLICATION_ID,
+      privateKey: process.env.VONAGE_PRIVATE_KEY_PATH
     });
 
-    return res.status(200).json({
-      success: true,
-      code,
-      vonageResponse: response
+    await vonage.voice.createOutboundCall({
+      to: [
+        {
+          type: "phone",
+          number: phone
+        }
+      ],
+      from: {
+        type: "phone",
+        number: process.env.VONAGE_NUMBER
+      },
+      answer_url: [
+        `${process.env.VERCEL_URL}/api/voice/answer?code=${code}`
+      ]
     });
 
+    res.status(200).json({ success: true, code });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      error: "Voice call failed",
-      details: error
-    });
+    console.error("ERROR:", error);
+    res.status(500).json({ error: "Call failed", details: error });
   }
 }
