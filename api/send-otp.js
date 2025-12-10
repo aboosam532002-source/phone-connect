@@ -1,27 +1,34 @@
-// api/send-otp.js
-import { Vonage } from '@vonage/server-sdk';
-
-const otps = global.otps || (global.otps = {});
+// إنشاء تخزين مؤقت للكود (OTP) إذا غير موجود
+if (!global.otpStore) {
+  global.otpStore = {};
+}
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ message: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method not allowed" });
+  }
 
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ message: "Missing phone" });
 
   const code = generateOTP();
-  otps[phone] = { code, expires: Date.now() + 5 * 60 * 1000 };
+
+  // حفظ الكود في التخزين المؤقت
+  global.otpStore[phone] = {
+    code: code,
+    expires: Date.now() + 2 * 60 * 1000 // مدة الحياة 2 دقيقة
+  };
 
   try {
     const vonage = new Vonage({
       apiKey: process.env.VONAGE_API_KEY,
       apiSecret: process.env.VONAGE_API_SECRET,
       applicationId: process.env.VONAGE_APPLICATION_ID,
-      privateKey: process.env.VONAGE_PRIVATE_KEY, // ← هذا الصحيح
+      privateKey: process.env.VONAGE_PRIVATE_KEY,
     });
 
     const ncco = [
@@ -39,8 +46,5 @@ export default async function handler(req, res) {
     });
 
     return res.status(200).json({ success: true, message: "Call placed" });
-  } catch (err) {
-    console.error("Vonage Error:", err);
-    return res.status(500).json({ success: false, message: "Vonage call failed", error: err.message });
+
   }
-}
