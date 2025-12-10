@@ -1,32 +1,91 @@
-export default async function handler(req, res) {
+export const config = {
+  runtime: "edge",
+};
+
+// CORS handler
+function handleCORS(req) {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+  return null;
+}
+
+export default async function handler(req) {
+  // CORS
+  const cors = handleCORS(req);
+  if (cors) return cors;
+
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      {
+        status: 405,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
   }
 
-  const { phone, code } = req.body;
+  const { phone, code } = await req.json();
 
   if (!phone || !code) {
-    return res.status(400).json({ error: "Phone and code are required" });
+    return new Response(
+      JSON.stringify({ error: "Phone and code required" }),
+      {
+        status: 400,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
   }
 
-  // قراءة الكود الصحيح من قاعدة البيانات المؤقتة (مثال)
-  // لاحقًا بنربطه ب Redis أو Supabase
-  const stored = global.otpStore?.[phone];
+  globalThis.otpStore = globalThis.otpStore || {};
+  const stored = globalThis.otpStore[phone];
 
   if (!stored) {
-    return res.status(400).json({ success: false, message: "No OTP was sent to this number" });
+    return new Response(
+      JSON.stringify({ success: false, message: "No OTP sent" }),
+      {
+        status: 400,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
+  }
+
+  if (stored.expires < Date.now()) {
+    delete globalThis.otpStore[phone];
+    return new Response(
+      JSON.stringify({ success: false, message: "Expired code" }),
+      {
+        status: 400,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
   }
 
   if (stored.code !== code) {
-    return res.status(400).json({ success: false, message: "Incorrect code" });
+    return new Response(
+      JSON.stringify({ success: false, message: "Incorrect code" }),
+      {
+        status: 400,
+        headers: { "Access-Control-Allow-Origin": "*" }
+      }
+    );
   }
 
-  // تحقق من انتهاء صلاحية الكود
-  if (Date.now() > stored.expireAt) {
-    return res.status(400).json({ success: false, message: "OTP expired" });
-  }
+  // success
+  delete globalThis.otpStore[phone];
 
-  // نجاح التحقق
-  return res.status(200).json({ success: true, message: "OTP verified successfully" });
+  return new Response(
+    JSON.stringify({ success: true }),
+    {
+      status: 200,
+      headers: { "Access-Control-Allow-Origin": "*" }
+    }
+  );
 }
-
