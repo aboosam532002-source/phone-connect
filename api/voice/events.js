@@ -1,3 +1,5 @@
+import querystring from "querystring";
+
 export const config = {
   api: {
     bodyParser: false,
@@ -13,12 +15,8 @@ export default async function handler(req, res) {
 
   console.log("VOICE EVENT RAW:", raw);
 
-  try {
-    const parsed = JSON.parse(raw);
-    console.log("VOICE EVENT PARSED:", parsed);
-  } catch {
-    console.log("VOICE EVENT PARSE ERROR");
-  }
+  const parsed = querystring.parse(raw);
+  console.log("VOICE EVENT PARSED:", parsed);
 
   res.status(200).end();
 }
