@@ -1,96 +1,52 @@
-export const config = {
-  runtime: "edge",
-};
+import { Vonage } from "@vonage/server-sdk";
 
-// CORS handler
-function handleCORS(req) {
+export default async function handler(req, res) {
+  // CORS fix
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      },
-    });
+    return res.status(200).end();
   }
-  return null;
-}
-
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-export default async function handler(req) {
-  // CORS
-  const cors = handleCORS(req);
-  if (cors) return cors;
 
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      {
-        status: 405,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { phone } = await req.json();
-  if (!phone) {
-    return new Response(
-      JSON.stringify({ error: "Missing phone" }),
-      {
-        status: 400,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
-  }
+  const { phone, code } = req.body;
 
-  const code = generateOTP();
-  globalThis.otpStore = globalThis.otpStore || {};
-  globalThis.otpStore[phone] = {
-    code,
-    expires: Date.now() + 5 * 60 * 1000,
-  };
+  if (!phone || !code) {
+    return res.status(400).json({ error: "Missing phone or code" });
+  }
 
   try {
-    const vonage = new (require("@vonage/server-sdk").Vonage)({
+    const vonage = new Vonage({
       apiKey: process.env.VONAGE_API_KEY,
       apiSecret: process.env.VONAGE_API_SECRET,
-      applicationId: process.env.VONAGE_APPLICATION_ID,
-      privateKey: process.env.VONAGE_PRIVATE_KEY,
     });
 
     const ncco = [
       {
         action: "talk",
-        text: `Your verification code is ${code.split("").join(" ")}`,
-        voiceName: "Joey",
+        text: `Your verification code is ${code}`,
+        language: "en-US",
+        style: 2,
       },
     ];
 
-    await vonage.voice.createCall({
+    await vonage.voice.createOutboundCall({
       to: [{ type: "phone", number: phone }],
-      from: [{ type: "phone", number: process.env.VONAGE_NUMBER }],
+      from: { type: "phone", number: process.env.VONAGE_NUMBER },
       ncco,
     });
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      {
-        status: 200,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
-  } catch (err) {
-    console.error("Vonage error:", err);
-    return new Response(
-      JSON.stringify({ error: "Vonage failed" }),
-      {
-        status: 500,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
+    return res.status(200).json({
+      ok: true,
+      message: "Voice call sent ✔️",
+    });
+  } catch (error) {
+    console.error("Vonage error:", error);
+    return res.status(500).json({ error: error.message });
   }
 }
