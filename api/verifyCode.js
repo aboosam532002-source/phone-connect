@@ -1,91 +1,30 @@
-export const config = {
-  runtime: "edge",
-};
+// api/verifyCode.js
+globalThis.otpStore = globalThis.otpStore || {};
 
-// CORS handler
-function handleCORS(req) {
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      },
-    });
-  }
-  return null;
-}
-
-export default async function handler(req) {
+export default async function handler(req, res) {
   // CORS
-  const cors = handleCORS(req);
-  if (cors) return cors;
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      {
-        status: 405,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { phone, code } = await req.json();
+  const { phone, code } = req.body;
+  if (!phone || !code) return res.status(400).json({ error: "phone and code required" });
 
-  if (!phone || !code) {
-    return new Response(
-      JSON.stringify({ error: "Phone and code required" }),
-      {
-        status: 400,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
-  }
+  const rec = globalThis.otpStore[phone];
+  if (!rec) return res.status(400).json({ success: false, message: "No OTP sent" });
 
-  globalThis.otpStore = globalThis.otpStore || {};
-  const stored = globalThis.otpStore[phone];
-
-  if (!stored) {
-    return new Response(
-      JSON.stringify({ success: false, message: "No OTP sent" }),
-      {
-        status: 400,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
-  }
-
-  if (stored.expires < Date.now()) {
+  if (Date.now() > rec.expires) {
     delete globalThis.otpStore[phone];
-    return new Response(
-      JSON.stringify({ success: false, message: "Expired code" }),
-      {
-        status: 400,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
+    return res.status(400).json({ success: false, message: "Expired code" });
   }
 
-  if (stored.code !== code) {
-    return new Response(
-      JSON.stringify({ success: false, message: "Incorrect code" }),
-      {
-        status: 400,
-        headers: { "Access-Control-Allow-Origin": "*" }
-      }
-    );
+  if (rec.code !== String(code).trim()) {
+    return res.status(400).json({ success: false, message: "Incorrect code" });
   }
 
-  // success
   delete globalThis.otpStore[phone];
-
-  return new Response(
-    JSON.stringify({ success: true }),
-    {
-      status: 200,
-      headers: { "Access-Control-Allow-Origin": "*" }
-    }
-  );
+  return res.status(200).json({ success: true, message: "Verified" });
 }
